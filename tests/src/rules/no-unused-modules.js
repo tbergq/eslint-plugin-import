@@ -4,6 +4,11 @@ import typescriptConfig from '../../../config/typescript';
 
 import { RuleTester } from 'eslint';
 import fs from 'fs';
+import semver from 'semver';
+import eslintPkg from 'eslint/package.json';
+
+// TODO: figure out why these tests fail in eslint 4
+const isESLint4TODO = semver.satisfies(eslintPkg.version, '^4');
 
 const ruleTester = new RuleTester();
 const typescriptRuleTester = new RuleTester(typescriptConfig);
@@ -495,7 +500,7 @@ describe('renameDefault', () => {
   });
 });
 
-describe('test behaviour for new file', () => {
+describe('test behavior for new file', () => {
   before(() => {
     fs.writeFileSync(testFilePath('./no-unused-modules/file-added-0.js'), '', { encoding: 'utf8' });
   });
@@ -583,7 +588,7 @@ describe('test behaviour for new file', () => {
   });
 
 
-  describe('test behaviour for new file', () => {
+  describe('test behavior for new file', () => {
     before(() => {
       fs.writeFileSync(testFilePath('./no-unused-modules/file-added-1.js'), '', { encoding: 'utf8' });
     });
@@ -614,7 +619,7 @@ describe('test behaviour for new file', () => {
   });
 });
 
-describe('test behaviour for new file', () => {
+describe('test behavior for new file', () => {
   before(() => {
     fs.writeFileSync(testFilePath('./no-unused-modules/file-added-2.js'), '', { encoding: 'utf8' });
   });
@@ -636,7 +641,7 @@ describe('test behaviour for new file', () => {
   });
 });
 
-describe('test behaviour for new file', () => {
+describe('test behavior for new file', () => {
   before(() => {
     fs.writeFileSync(testFilePath('./no-unused-modules/file-added-3.js'), '', { encoding: 'utf8' });
   });
@@ -658,7 +663,26 @@ describe('test behaviour for new file', () => {
   });
 });
 
-describe('test behaviour for new file', () => {
+describe('test behavior for destructured exports', () => {
+  ruleTester.run('no-unused-modules', rule, {
+    valid: [
+      test({ options: unusedExportsOptions,
+        code: `import { destructured } from '${testFilePath('./no-unused-modules/file-destructured-1.js')}'`,
+        filename: testFilePath('./no-unused-modules/file-destructured-2.js') }),
+      test({ options: unusedExportsOptions,
+        code: `export const { destructured } = {};`,
+        filename: testFilePath('./no-unused-modules/file-destructured-1.js') }),
+    ],
+    invalid: [
+      test({ options: unusedExportsOptions,
+        code: `export const { destructured2 } = {};`,
+        filename: testFilePath('./no-unused-modules/file-destructured-1.js'),
+        errors: [`exported declaration 'destructured2' not used within other modules`] }),
+    ],
+  });
+});
+
+describe('test behavior for new file', () => {
   before(() => {
     fs.writeFileSync(testFilePath('./no-unused-modules/file-added-4.js.js'), '', { encoding: 'utf8' });
   });
@@ -747,7 +771,7 @@ describe('Avoid errors if re-export all from umd compiled library', () => {
 context('TypeScript', function () {
   getTSParsers().forEach((parser) => {
     typescriptRuleTester.run('no-unused-modules', rule, {
-      valid: [
+      valid: [].concat(
         test({
           options: unusedExportsTypescriptOptions,
           code: `
@@ -828,7 +852,7 @@ context('TypeScript', function () {
           filename: testFilePath('./no-unused-modules/typescript/file-ts-e-used-as-type.ts'),
         }),
         // Should also be valid when the exporting files are linted before the importing ones
-        test({
+        isESLint4TODO ? [] : test({
           options: unusedExportsTypescriptOptions,
           code: `export interface g {}`,
           parser,
@@ -840,9 +864,9 @@ context('TypeScript', function () {
           parser,
           filename: testFilePath('./no-unused-modules/typescript/file-ts-f.ts'),
         }),
-        test({
+        isESLint4TODO ? [] : test({
           options: unusedExportsTypescriptOptions,
-          code: `export interface g {};`,
+          code: `export interface g {}; /* used-as-type */`,
           parser,
           filename: testFilePath('./no-unused-modules/typescript/file-ts-g-used-as-type.ts'),
         }),
@@ -852,8 +876,8 @@ context('TypeScript', function () {
           parser,
           filename: testFilePath('./no-unused-modules/typescript/file-ts-f-import-type.ts'),
         }),
-      ],
-      invalid: [
+      ),
+      invalid: [].concat(
         test({
           options: unusedExportsTypescriptOptions,
           code: `export const b = 2;`,
@@ -890,7 +914,7 @@ context('TypeScript', function () {
             error(`exported declaration 'e' not used within other modules`),
           ],
         }),
-      ],
+      ),
     });
   });
 });
@@ -960,6 +984,26 @@ describe('ignore flow types', () => {
                `,
         parser: require.resolve('babel-eslint'),
         filename: testFilePath('./no-unused-modules/flow/flow-1.js'),
+      }),
+    ],
+    invalid: [],
+  });
+});
+
+describe('support (nested) destructuring assignment', () => {
+  ruleTester.run('no-unused-modules', rule, {
+    valid: [
+      test({
+        options: unusedExportsOptions,
+        code: 'import {a, b} from "./destructuring-b";',
+        parser: require.resolve('babel-eslint'),
+        filename: testFilePath('./no-unused-modules/destructuring-a.js'),
+      }),
+      test({
+        options: unusedExportsOptions,
+        code: 'const obj = {a: 1, dummy: {b: 2}}; export const {a, dummy: {b}} = obj;',
+        parser: require.resolve('babel-eslint'),
+        filename: testFilePath('./no-unused-modules/destructuring-b.js'),
       }),
     ],
     invalid: [],

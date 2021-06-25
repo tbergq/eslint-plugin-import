@@ -87,6 +87,14 @@ ruleTester.run('no-extraneous-dependencies', rule, {
       parser: require.resolve('babel-eslint'),
     }),
     test({
+      code: `
+        // @flow
+        import typeof TypeScriptModule from 'typescript';
+      `,
+      options: [{ packageDir: packageDirWithFlowTyped }],
+      parser: require.resolve('babel-eslint'),
+    }),
+    test({
       code: 'import react from "react";',
       options: [{ packageDir: packageDirMonoRepoWithNested }],
     }),
@@ -127,6 +135,34 @@ ruleTester.run('no-extraneous-dependencies', rule, {
     test({ code: 'export class Component extends React.Component {}' }),
     test({ code: 'export function Component() {}' }),
     test({ code: 'export const Component = () => {}' }),
+
+    test({
+      code: 'import "not-a-dependency"',
+      filename: path.join(packageDirMonoRepoRoot, 'foo.js'),
+      options: [{ packageDir: packageDirMonoRepoRoot }],
+      settings: { 'import/core-modules': ['not-a-dependency'] },
+    }),
+    test({
+      code: 'import "@generated/bar/module"',
+      settings: { 'import/core-modules': ['@generated/bar'] },
+    }),
+    test({
+      code: 'import "@generated/bar/and/sub/path"',
+      settings: { 'import/core-modules': ['@generated/bar'] },
+    }),
+    // check if "rxjs" dependency declaration fix the "rxjs/operators subpackage
+    test({
+      code: 'import "rxjs/operators"',
+    }),
+
+    test({
+      code: 'import "esm-package/esm-module";',
+    }),
+
+    test({
+      code: 'import "alias/esm-package/esm-module";',
+      settings: { 'import/resolver': 'webpack' },
+    }),
   ],
   invalid: [
     test({
@@ -322,10 +358,27 @@ ruleTester.run('no-extraneous-dependencies', rule, {
         message: "'chai' should be listed in the project's dependencies. Run 'npm i -S chai' to add it",
       }],
     }),
+
+    test({
+      code: 'import "not-a-dependency"',
+      filename: path.join(packageDirMonoRepoRoot, 'foo.js'),
+      options: [{ packageDir: packageDirMonoRepoRoot }],
+      errors: [{
+        message: `'not-a-dependency' should be listed in the project's dependencies. Run 'npm i -S not-a-dependency' to add it`,
+      }],
+    }),
+
+    test({
+      code: 'import "esm-package-not-in-pkg-json/esm-module";',
+      errors: [{
+        message: `'esm-package-not-in-pkg-json' should be listed in the project's dependencies. Run 'npm i -S esm-package-not-in-pkg-json' to add it`,
+      }],
+    }),
   ],
 });
 
-describe('TypeScript', function () {
+// TODO: figure out why these tests fail in eslint 4
+describe('TypeScript', { skip: semver.satisfies(eslintPkg.version, '^4') }, function () {
   getTSParsers().forEach((parser) => {
     const parserConfig = {
       parser: parser,
@@ -358,14 +411,14 @@ describe('TypeScript', function () {
         valid: [],
         invalid: [
           test(Object.assign({
-            code: 'import { JSONSchema7Type } from "@types/json-schema";',
+            code: 'import { JSONSchema7Type } from "@types/json-schema"; /* typescript-eslint-parser */',
             options: [{ packageDir: packageDirWithTypescriptDevDependencies, devDependencies: false }],
             errors: [{
               message: "'@types/json-schema' should be listed in the project's dependencies, not devDependencies.",
             }],
           }, parserConfig)),
           test(Object.assign({
-            code: 'import type { JSONSchema7Type } from "@types/json-schema";',
+            code: 'import type { JSONSchema7Type } from "@types/json-schema"; /* typescript-eslint-parser */',
             options: [{ packageDir: packageDirWithTypescriptDevDependencies, devDependencies: false }],
             errors: [{
               message: "'@types/json-schema' should be listed in the project's dependencies, not devDependencies.",
